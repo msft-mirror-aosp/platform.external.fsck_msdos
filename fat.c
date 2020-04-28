@@ -54,10 +54,10 @@ static int _readfat(int, struct bootblock *, u_int, u_char **);
  * 31...... ........ ........ .......0
  * rrrr1111 11111111 11111111 mmmmmmmm         FAT32 entry 0
  * rrrrsh11 11111111 11111111 11111xxx         FAT32 entry 1
- *
+ * 
  *                   11111111 mmmmmmmm         FAT16 entry 0
  *                   sh111111 11111xxx         FAT16 entry 1
- *
+ * 
  * r = reserved
  * m = BPB media ID byte
  * s = clean flag (1 = dismounted; 0 = still mounted)
@@ -166,11 +166,11 @@ static int
 _readfat(int fs, struct bootblock *boot, u_int no, u_char **buffer)
 {
 	off_t off;
+	size_t len;
 
-	*buffer = calloc(boot->FATsecs, boot->bpbBytesPerSec);
+	*buffer = malloc(len = boot->FATsecs * boot->bpbBytesPerSec);
 	if (*buffer == NULL) {
-		perr("No space for FAT sectors (%zu)",
-		    (size_t)boot->FATsecs);
+		perr("No space for FAT sectors (%zu)", len);
 		return 0;
 	}
 
@@ -205,19 +205,20 @@ readfat(int fs, struct bootblock *boot, u_int no, struct fatEntry **fp)
 	u_char *buffer, *p;
 	cl_t cl;
 	int ret = FSOK;
+	size_t len;
 
 	boot->NumFree = boot->NumBad = 0;
 
 	if (!_readfat(fs, boot, no, &buffer))
 		return FSFATAL;
 
-	fat = calloc(boot->NumClusters, sizeof(struct fatEntry));
+	fat = malloc(len = boot->NumClusters * sizeof(struct fatEntry));
 	if (fat == NULL) {
-		perr("No space for FAT clusters (%zu)",
-		    (size_t)boot->NumClusters);
+		perr("No space for FAT clusters (%zu)", len);
 		free(buffer);
 		return FSFATAL;
 	}
+	(void)memset(fat, 0, len);
 
 	if (buffer[0] != boot->bpbMedia
 	    || buffer[1] != 0xff || buffer[2] != 0xff
@@ -518,6 +519,7 @@ clear:
 		}
 		if (head == fat[n].head) {
 			pwarn("Cluster chain starting at %u loops at cluster %u\n",
+
 			    head, p);
 			goto clear;
 		}
@@ -564,13 +566,12 @@ writefat(int fs, struct bootblock *boot, struct fatEntry *fat, int correct_fat)
 	off_t off;
 	int ret = FSOK;
 
-	fatsz = boot->FATsecs * boot->bpbBytesPerSec;
-	buffer = calloc(boot->FATsecs, boot->bpbBytesPerSec);
+	buffer = malloc(fatsz = boot->FATsecs * boot->bpbBytesPerSec);
 	if (buffer == NULL) {
-		perr("No space for FAT sectors (%zu)",
-		    (size_t)boot->FATsecs);
+		perr("No space for FAT sectors (%zu)", fatsz);
 		return FSFATAL;
 	}
+	memset(buffer, 0, fatsz);
 	boot->NumFree = 0;
 	p = buffer;
 	if (correct_fat) {
@@ -644,8 +645,8 @@ writefat(int fs, struct bootblock *boot, struct fatEntry *fat, int correct_fat)
 				break;
 			if (fat[cl].next == CLUST_FREE)
 				boot->NumFree++;
-			*p++ |= (u_char)(fat[cl].next << 4);
-			*p++ = (u_char)(fat[cl].next >> 4);
+			*p++ |= (u_char)(fat[cl + 1].next << 4);
+			*p++ = (u_char)(fat[cl + 1].next >> 4);
 			break;
 		}
 	}
@@ -703,20 +704,6 @@ checklost(int dosfs, struct bootblock *boot, struct fatEntry *fat)
 				boot->FSFree = boot->NumFree;
 				ret = 1;
 			}
-		}
-		if (boot->FSNext != 0xffffffffU &&
-		    (boot->FSNext >= boot->NumClusters ||
-		    (boot->NumFree && fat[boot->FSNext].next != CLUST_FREE))) {
-			pwarn("Next free cluster in FSInfo block (%u) %s\n",
-			      boot->FSNext,
-			      (boot->FSNext >= boot->NumClusters) ? "invalid" : "not free");
-			if (ask(1, "fix"))
-				for (head = CLUST_FIRST; head < boot->NumClusters; head++)
-					if (fat[head].next == CLUST_FREE) {
-						boot->FSNext = head;
-						ret = 1;
-						break;
-					}
 		}
 		if (ret)
 			mod |= writefsinfo(dosfs, boot);
