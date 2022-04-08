@@ -388,8 +388,7 @@ static int
 checksize(struct fat_descriptor *fat, u_char *p, struct dosDirEntry *dir)
 {
 	int ret = FSOK;
-	size_t chainsize;
-	u_int64_t physicalSize;
+	size_t physicalSize;
 	struct bootblock *boot;
 
 	boot = fat_get_boot(fat);
@@ -402,9 +401,9 @@ checksize(struct fat_descriptor *fat, u_char *p, struct dosDirEntry *dir)
 	} else {
 		if (!fat_is_valid_cl(fat, dir->head))
 			return FSERROR;
-		ret = checkchain(fat, dir->head, &chainsize);
+		ret = checkchain(fat, dir->head, &physicalSize);
 		/*
-		 * Upon return, chainsize would hold the chain length
+		 * Upon return, physicalSize would hold the chain length
 		 * that checkchain() was able to validate, but if the user
 		 * refused the proposed repair, it would be unsafe to
 		 * proceed with directory entry fix, so bail out in that
@@ -413,16 +412,10 @@ checksize(struct fat_descriptor *fat, u_char *p, struct dosDirEntry *dir)
 		if (ret == FSERROR) {
 			return (FSERROR);
 		}
-		/*
-		 * The maximum file size on FAT32 is 4GiB - 1, which
-		 * will occupy a cluster chain of exactly 4GiB in
-		 * size.  On 32-bit platforms, since size_t is 32-bit,
-		 * it would wrap back to 0.
-		 */
-		physicalSize = (u_int64_t)chainsize * boot->ClusterSize;
+		physicalSize *= boot->ClusterSize;
 	}
 	if (physicalSize < dir->size) {
-		pwarn("size of %s is %u, should at most be %" PRIu64 "\n",
+		pwarn("size of %s is %u, should at most be %zu\n",
 		      fullpath(dir), dir->size, physicalSize);
 		if (ask(1, "Truncate")) {
 			dir->size = physicalSize;
