@@ -24,14 +24,16 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * $FreeBSD$
  */
 
 #ifdef __ANDROID__
 #define    __dead2     __attribute__((__noreturn__))
 #endif
 
+struct fstab;
+int checkfstab(int, int (*)(struct fstab *), 
+    int (*) (const char *, const char *, const char *, const char *, pid_t *));
+int getfsopt(struct fstab *, const char *);
 void pfatal(const char *, ...) __printflike(1, 2);
 void pwarn(const char *, ...) __printflike(1, 2);
 void perr(const char *, ...) __printflike(1, 2);
@@ -39,20 +41,13 @@ void panic(const char *, ...) __dead2 __printflike(1, 2);
 const char *devcheck(const char *);
 const char *cdevname(void);
 void setcdevname(const char *, int);
-struct statfs *getmntpt(const char *);
 void *emalloc(size_t);
 void *erealloc(void *, size_t);
 char *estrdup(const char *);
 
-#ifndef __ANDROID__
 #define	CHECK_PREEN	0x0001
 #define	CHECK_VERBOSE	0x0002
 #define	CHECK_DEBUG	0x0004
 #define	CHECK_BACKGRD	0x0008
 #define	DO_BACKGRD	0x0010
 #define	CHECK_CLEAN	0x0020
-
-struct fstab;
-int checkfstab(int, int (*)(struct fstab *),
-    int (*) (const char *, const char *, const char *, const char *, pid_t *));
-#endif
